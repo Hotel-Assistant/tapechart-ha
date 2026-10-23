@@ -9,3 +9,4 @@ __pycache__/
 htmlcov/
 *.zip
 .DS_Store
+.venv2506/
