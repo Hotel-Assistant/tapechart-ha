@@ -103,6 +103,11 @@ async def test_startup_sends_health_mapping_and_current_states(
     assert signals["climate"]["attributes"] == {
         "current_temperature": 21.0,
         "temperature": 22.0,
+        "min_temp": None,
+        "max_temp": None,
+        "target_temp_step": None,
+        "hvac_modes": [],
+        "hvac_action": None,
     }
     assert signals["temperature"]["state"] == "21"
     assert signals["alarm"]["attributes"] == {"device_class": "moisture"}
@@ -476,3 +481,28 @@ async def test_unrelated_entities_do_not_reach_the_pms(
         add.assert_not_called()
     assert len(aioclient_mock.mock_calls) == before
     assert U206  # room 206 has no mapping at all
+
+
+async def test_climate_action_change_is_immediate(
+    hass: HomeAssistant, setup_entry, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """hvac_action (heating ↔ idle) is not debounced; the measured temperature is."""
+    _states(hass)
+    await setup_entry(options=OPTIONS)
+    base = {
+        "current_temperature": 21.0,
+        "temperature": 22.0,
+        "hvac_modes": ["off", "heat"],
+    }
+    hass.states.async_set(CLIMATE, "heat", {**base, "hvac_action": "heating"})
+    await hass.async_block_till_done()
+    hass.states.async_set(CLIMATE, "heat", {**base, "hvac_action": "idle"})
+    await hass.async_block_till_done()
+    hass.states.async_set(
+        CLIMATE, "heat", {**base, "hvac_action": "idle", "current_temperature": 21.1}
+    )
+    await hass.async_block_till_done()
+    actions = [
+        e["attributes"]["hvac_action"] for e in _signals(aioclient_mock, "climate")
+    ]
+    assert actions == [None, "heating", "idle"]

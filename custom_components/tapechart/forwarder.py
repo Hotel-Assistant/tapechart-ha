@@ -319,13 +319,18 @@ class Forwarder:
         changed_at: datetime,
     ) -> None:
         sent = track.sent
+
+        def _rest(v: tuple[str, dict[str, Any]]) -> dict[str, Any]:
+            return {k: x for k, x in v[1].items() if k != "current_temperature"}
+
         if (
             sent is None
             or value[0] != sent[0]
-            or value[1].get("temperature") != sent[1].get("temperature")
+            or _rest(value) != _rest(sent)
             or value[0] == UNAVAILABLE
         ):
-            # Mode or setpoint: a deliberate change, sent at once.
+            # Mode, setpoint, action, limits: sent at once; only the measured
+            # temperature is debounced.
             track.cancel()
             if value != sent:
                 self._send(key, value, changed_at)

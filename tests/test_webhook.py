@@ -269,3 +269,113 @@ async def test_cloudhook_path_is_logical(hass: HomeAssistant, setup_entry) -> No
     resp = await webhook.async_handle_webhook(hass, WEBHOOK_ID, request)
     assert resp.status == 200
     assert json.loads(resp.body) == {"ok": True, "nonce": "c"}
+
+
+async def test_climate_command(
+    hass: HomeAssistant, setup_entry, hass_client_no_auth
+) -> None:
+    """Only the room's mapped climate entity; validated; once per command_id."""
+    modes = async_mock_service(hass, "climate", "set_hvac_mode")
+    temps = async_mock_service(hass, "climate", "set_temperature")
+    attrs = {
+        "min_temp": 7,
+        "max_temp": 30,
+        "target_temp_step": 0.5,
+        "hvac_modes": ["off", "heat"],
+    }
+    hass.states.async_set("climate.room_205", "off", attrs)
+    hass.states.async_set("climate.room_206", "off", attrs)
+    await setup_entry(
+        options={"mapping": {U205: {"climate": "climate.room_205", **MAPPING[U205]}}}
+    )
+    client = await hass_client_no_auth()
+
+    def cmd(cid: str, unit: str = U205, **kw: Any) -> dict[str, Any]:
+        return {
+            "type": "command",
+            "command_id": cid,
+            "unit_id": unit,
+            "action": "climate",
+            **kw,
+        }
+
+    resp = await _post(client, cmd("k1", temperature=21.3, hvac_mode="heat"))
+    assert await resp.json() == {"ok": True}
+    assert [c.data for c in modes] == [
+        {"entity_id": "climate.room_205", "hvac_mode": "heat"}
+    ]
+    assert [c.data for c in temps] == [
+        {"entity_id": "climate.room_205", "temperature": 21.5}
+    ]
+
+    # Same command id again: not run twice.
+    resp = await _post(client, cmd("k1", temperature=21.3, hvac_mode="heat"))
+    assert await resp.json() == {"ok": True}
+    assert len(modes) == 1 and len(temps) == 1
+
+    resp = await _post(client, cmd("k2", temperature=19))
+    assert await resp.json() == {"ok": True}
+    assert len(modes) == 1 and temps[-1].data["temperature"] == 19.0
+
+    for cid, kw, error in (
+        ("k3", {"temperature": 40}, "invalid"),
+        ("k4", {"hvac_mode": "cool"}, "invalid"),
+        ("k5", {}, "invalid"),
+        ("k6", {"temperature": "warm"}, "invalid"),
+    ):
+        resp = await _post(client, cmd(cid, **kw))
+        assert await resp.json() == {"ok": False, "error": error}, cid
+    resp = await _post(client, cmd("k7", unit=U206, temperature=20))
+    assert await resp.json() == {"ok": False, "error": "not_mapped"}
+    resp = await _post(client, cmd("k8", unit="nope", temperature=20))
+    assert await resp.json() == {"ok": False, "error": "unknown_room"}
+    resp = await _post(
+        client,
+        {"type": "command", "command_id": "k9", "unit_id": U205, "action": "lights"},
+    )
+    assert await resp.json() == {"ok": False, "error": "invalid"}
+    # The other room's thermostat was never touched.
+    assert all(c.data["entity_id"] == "climate.room_205" for c in [*modes, *temps])
+    assert len(temps) == 2
+
+
+async def test_climate_command_failure(
+    hass: HomeAssistant, setup_entry, hass_client_no_auth
+) -> None:
+    """A service error, or a mapped entity that is gone, answers failed."""
+    from homeassistant.exceptions import HomeAssistantError
+
+    async def _boom(call: Any) -> None:
+        raise HomeAssistantError("device offline")
+
+    hass.services.async_register("climate", "set_temperature", _boom)
+    hass.states.async_set(
+        "climate.room_205",
+        "heat",
+        {"min_temp": 7, "max_temp": 30, "hvac_modes": ["heat"]},
+    )
+    await setup_entry(options={"mapping": {U205: {"climate": "climate.room_205"}}})
+    client = await hass_client_no_auth()
+    resp = await _post(
+        client,
+        {
+            "type": "command",
+            "command_id": "f1",
+            "unit_id": U205,
+            "action": "climate",
+            "temperature": 20,
+        },
+    )
+    assert await resp.json() == {"ok": False, "error": "failed"}
+    hass.states.async_remove("climate.room_205")
+    resp = await _post(
+        client,
+        {
+            "type": "command",
+            "command_id": "f2",
+            "unit_id": U205,
+            "action": "climate",
+            "temperature": 20,
+        },
+    )
+    assert await resp.json() == {"ok": False, "error": "failed"}

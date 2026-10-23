@@ -27,7 +27,9 @@ eco mode on check-out.
 In the other direction you choose, per room, which Home Assistant entity plays which role:
 presence, key card, door, window, do not disturb, make up room, thermostat, room temperature,
 controller online, alarm, and three **scenarios** (welcome, eco, all off) that front-desk staff may
-run from the PMS. **Only the entities you map ever leave Home Assistant.**
+run from the PMS. Staff can also set the mode and target temperature of the room's mapped
+thermostat, within the thermostat's own limits and modes. **Only the entities you map ever leave
+Home Assistant**, and the PMS can act on nothing but the mapped scenarios and thermostat.
 
 One Home Assistant can serve several properties: pair each one (one integration entry per
 property).

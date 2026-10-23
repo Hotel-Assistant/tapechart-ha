@@ -53,6 +53,7 @@ from .const import (
     STAY_EVENTS,
 )
 from .forwarder import Forwarder
+from .mapping import climate_plan
 from .outbox import Outbox
 from .seen import SeenStore
 from .signing import PATH_WEBHOOK, verify_signature
@@ -648,9 +649,13 @@ class TapeChartHub:
 
     async def _async_run_command(self, message: dict[str, Any]) -> dict[str, Any]:
         unit_id = str(message.get("unit_id") or "")
-        scenario = message.get("scenario")
         if unit_id not in self.rooms:
             return {"ok": False, "error": "unknown_room"}
+        if "action" in message:
+            if message["action"] == "climate":
+                return await self._async_climate_command(unit_id, message)
+            return {"ok": False, "error": "invalid"}
+        scenario = message.get("scenario")
         if scenario not in SCENARIOS:
             return {"ok": False, "error": "not_mapped"}
         entity_id = self.mapping.get(unit_id, {}).get(f"scenario_{scenario}")
@@ -671,6 +676,52 @@ class TapeChartHub:
             "Tape Chart ran %s (%s) for %s",
             scenario,
             entity_id,
+            self.device_name(unit_id),
+        )
+        return {"ok": True}
+
+    async def _async_climate_command(
+        self, unit_id: str, message: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Set the mode and/or setpoint of the room's mapped climate entity ONLY."""
+        entity_id = self.mapping.get(unit_id, {}).get("climate")
+        if not entity_id or not entity_id.startswith("climate."):
+            return {"ok": False, "error": "not_mapped"}
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return {"ok": False, "error": "failed"}
+        plan = climate_plan(
+            state.attributes, message.get("temperature"), message.get("hvac_mode")
+        )
+        if plan is None:
+            return {"ok": False, "error": "invalid"}
+        hvac_mode, temperature = plan
+        try:
+            async with asyncio.timeout(COMMAND_TIMEOUT):
+                if hvac_mode is not None:
+                    await self.hass.services.async_call(
+                        "climate",
+                        "set_hvac_mode",
+                        {"entity_id": entity_id, "hvac_mode": hvac_mode},
+                        blocking=True,
+                    )
+                if temperature is not None:
+                    await self.hass.services.async_call(
+                        "climate",
+                        "set_temperature",
+                        {"entity_id": entity_id, "temperature": temperature},
+                        blocking=True,
+                    )
+        except (HomeAssistantError, TimeoutError, ValueError) as err:
+            _LOGGER.warning(
+                "Tape Chart climate command for %s failed: %s", entity_id, err
+            )
+            return {"ok": False, "error": "failed"}
+        _LOGGER.info(
+            "Tape Chart set %s to mode %s, %s° for %s",
+            entity_id,
+            hvac_mode,
+            temperature,
             self.device_name(unit_id),
         )
         return {"ok": True}

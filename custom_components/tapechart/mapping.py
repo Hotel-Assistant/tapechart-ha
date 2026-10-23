@@ -40,6 +40,34 @@ def decimal_string(value: Any) -> str | None:
     return text if len(text) <= 16 else None
 
 
+_MODE = re.compile(r"^[a-z_]{1,32}$")
+MAX_HVAC_MODES = 10
+
+
+def climate_attributes(attributes: Mapping[str, Any]) -> dict[str, Any]:
+    """The climate role's attributes (contract §10), each null when absent/invalid."""
+    modes = attributes.get("hvac_modes")
+    hvac_modes = (
+        [str(m) for m in modes if isinstance(m, str) and _MODE.match(m)][
+            :MAX_HVAC_MODES
+        ]
+        if isinstance(modes, (list, tuple))
+        else []
+    )
+    action = attributes.get("hvac_action")
+    return {
+        "current_temperature": _number(attributes.get("current_temperature")),
+        "temperature": _number(attributes.get("temperature")),
+        "min_temp": _number(attributes.get("min_temp")),
+        "max_temp": _number(attributes.get("max_temp")),
+        "target_temp_step": _number(attributes.get("target_temp_step")),
+        "hvac_modes": hvac_modes,
+        "hvac_action": action
+        if isinstance(action, str) and len(action) <= 32
+        else None,
+    }
+
+
 def normalize_state(
     role: str, state: str | None, attributes: Mapping[str, Any] | None
 ) -> tuple[str, dict[str, Any]]:
@@ -57,10 +85,7 @@ def normalize_state(
         return raw, attrs
 
     if role == "climate":
-        attrs = {
-            "current_temperature": _number(attributes.get("current_temperature")),
-            "temperature": _number(attributes.get("temperature")),
-        }
+        attrs = climate_attributes(attributes)
         if missing:
             return UNAVAILABLE, attrs
         return raw, attrs
@@ -258,3 +283,36 @@ def online_from_states(states: list[str | None]) -> str:
         return UNAVAILABLE
     down = all((s or "").lower() in ("unavailable", "unknown", "") for s in states)
     return "off" if down else "on"
+
+
+def climate_plan(
+    attributes: Mapping[str, Any], temperature: Any, hvac_mode: Any
+) -> tuple[str | None, float | None] | None:
+    """Validate a climate command against the entity (contract §10).
+
+    Returns (hvac_mode or None, temperature or None), or None when invalid: neither
+    value given, a mode the entity does not offer, a temperature that is not a
+    number or lies outside min_temp..max_temp. The temperature is rounded to the
+    entity's step.
+    """
+    if temperature is None and hvac_mode is None:
+        return None
+    mode: str | None = None
+    if hvac_mode is not None:
+        modes = attributes.get("hvac_modes") or []
+        if not isinstance(hvac_mode, str) or hvac_mode not in modes:
+            return None
+        mode = hvac_mode
+    target: float | None = None
+    if temperature is not None:
+        value = _number(temperature)
+        low = _number(attributes.get("min_temp"))
+        high = _number(attributes.get("max_temp"))
+        if value is None or low is None or high is None or not low <= value <= high:
+            return None
+        step = _number(attributes.get("target_temp_step"))
+        if step is None or step <= 0:
+            step = 0.1  # the entity states no step: keep tenths
+        target = round(round(value / step) * step, 2)
+        target = min(max(target, low), high)
+    return mode, target

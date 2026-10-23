@@ -7,6 +7,7 @@ import pytest
 from custom_components.tapechart.mapping import (
     EntityInfo,
     Target,
+    climate_plan,
     decimal_string,
     device_prefix,
     fill_by_pattern,
@@ -15,6 +16,16 @@ from custom_components.tapechart.mapping import (
     online_from_states,
     substitute_number,
 )
+
+NO_CLIMATE = {
+    "current_temperature": None,
+    "temperature": None,
+    "min_temp": None,
+    "max_temp": None,
+    "target_temp_step": None,
+    "hvac_modes": [],
+    "hvac_action": None,
+}
 
 
 @pytest.mark.parametrize(
@@ -39,19 +50,27 @@ from custom_components.tapechart.mapping import (
             "climate",
             "heat",
             {"current_temperature": 21.5, "temperature": "22", "hvac_modes": ["heat"]},
-            ("heat", {"current_temperature": 21.5, "temperature": 22.0}),
+            (
+                "heat",
+                {
+                    **NO_CLIMATE,
+                    "current_temperature": 21.5,
+                    "temperature": 22.0,
+                    "hvac_modes": ["heat"],
+                },
+            ),
         ),
         (
             "climate",
             "unavailable",
             {},
-            ("unavailable", {"current_temperature": None, "temperature": None}),
+            ("unavailable", NO_CLIMATE),
         ),
         (
             "climate",
             "off",
             {"current_temperature": "nan"},
-            ("off", {"current_temperature": None, "temperature": None}),
+            ("off", NO_CLIMATE),
         ),
         ("temperature", "25.50", {}, ("25.5", {})),
         ("temperature", "21", {}, ("21", {})),
@@ -240,3 +259,76 @@ def test_online_from_states() -> None:
     assert online_from_states(["unavailable", "on"]) == "on"
     assert online_from_states([None]) == "off"
     assert online_from_states([]) == "unavailable"
+
+
+def test_climate_attributes_full() -> None:
+    """All §10 attributes; bad modes and long actions are dropped; ≤ 1 KB."""
+    attrs = {
+        "current_temperature": 21.4,
+        "temperature": 22,
+        "min_temp": 7,
+        "max_temp": 35,
+        "target_temp_step": 0.5,
+        "hvac_modes": [
+            "off",
+            "heat",
+            "Heat",
+            "fan-only",
+            "x" * 33,
+            *[f"mode_{chr(97 + i)}" for i in range(20)],
+        ],
+        "hvac_action": "heating",
+        "preset_modes": ["eco"],
+        "friendly_name": "Thermostat",
+    }
+    state, out = normalize_state("climate", "heat", attrs)
+    assert state == "heat"
+    assert out["min_temp"] == 7.0 and out["max_temp"] == 35.0
+    assert out["target_temp_step"] == 0.5
+    assert out["hvac_action"] == "heating"
+    assert out["hvac_modes"][:2] == ["off", "heat"]
+    assert len(out["hvac_modes"]) == 10
+    assert all(m.isascii() and m.replace("_", "").isalnum() for m in out["hvac_modes"])
+    assert set(out) == set(NO_CLIMATE)
+    import json
+
+    assert len(json.dumps(out)) <= 1024
+    _s, long_action = normalize_state("climate", "heat", {"hvac_action": "y" * 40})
+    assert long_action["hvac_action"] is None
+
+
+THERMO = {
+    "min_temp": 7,
+    "max_temp": 30,
+    "target_temp_step": 0.5,
+    "hvac_modes": ["off", "heat"],
+}
+
+
+@pytest.mark.parametrize(
+    ("temperature", "mode", "expected"),
+    [
+        (21.5, None, (None, 21.5)),
+        (21.3, "heat", ("heat", 21.5)),
+        ("22", None, (None, 22.0)),
+        (None, "off", ("off", None)),
+        (7, None, (None, 7.0)),
+        (30, None, (None, 30.0)),
+        (30.1, None, None),
+        (6.9, None, None),
+        ("abc", None, None),
+        (True, None, None),
+        (None, "cool", None),
+        (None, 5, None),
+        (None, None, None),
+    ],
+)
+def test_climate_plan(temperature, mode, expected) -> None:
+    """Range, step rounding and mode checks against the entity."""
+    assert climate_plan(THERMO, temperature, mode) == expected
+
+
+def test_climate_plan_without_limits_or_step() -> None:
+    """No min/max known: a temperature is refused; no step: tenths."""
+    assert climate_plan({"hvac_modes": ["heat"]}, 21, None) is None
+    assert climate_plan({"min_temp": 5, "max_temp": 30}, 21.26, None) == (None, 21.3)
