@@ -48,6 +48,9 @@
       },
       "next_arrival": {
         "default": "mdi:calendar-clock"
+      },
+      "guest": {
+        "default": "mdi:account"
       }
     }
   }

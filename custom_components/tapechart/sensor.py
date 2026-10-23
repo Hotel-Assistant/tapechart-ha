@@ -95,6 +95,13 @@ SENSORS: tuple[TapeChartSensorDescription, ...] = (
         status=True,
     ),
     TapeChartSensorDescription(
+        key="guest",
+        translation_key="guest",
+        # the owner's call (2026-10-24): the name is shown as a state; "—" when nobody is there
+        value_fn=lambda room: _guest(room).get("name") or "—",
+        attrs_fn=lambda room: {"companions": list(_stay(room).get("companions") or [])},
+    ),
+    TapeChartSensorDescription(
         key="guest_language",
         translation_key="guest_language",
         device_class=SensorDeviceClass.ENUM,

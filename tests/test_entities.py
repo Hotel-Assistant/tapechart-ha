@@ -63,6 +63,7 @@ async def test_devices_and_entities(hass: HomeAssistant, setup_entry) -> None:
     assert sorted(e.unique_id.removeprefix(f"{U205}_") for e in entities) == sorted(
         [
             "status",
+            "guest",
             "guest_checked_in",
             "guest_language",
             "adults",
@@ -75,12 +76,12 @@ async def test_devices_and_entities(hass: HomeAssistant, setup_entry) -> None:
             "stay",
         ]
     )
-    # §9 H4 / M2: no reservation number and no guest-name sensor.
+    # §9 H4: no reservation number. The guest's name IS a sensor (owner, 2026-10-24).
     reg = er.async_get(hass)
     assert (
         reg.async_get_entity_id("sensor", DOMAIN, f"{U205}_reservation_number") is None
     )
-    assert reg.async_get_entity_id("sensor", DOMAIN, f"{U205}_guest") is None
+    assert _state(hass, "sensor", U205, "guest").state == "Ivan Petrov"
     assert _eid(hass, "sensor", U205, "status") == "sensor.villa_bozhe_205_status"
 
 
