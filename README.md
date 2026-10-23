@@ -1,3 +1,5 @@
+<img src="brands/custom_integrations/tapechart/icon@2x.png" alt="Tape Chart" width="96" height="96">
+
 # Tape Chart for Home Assistant
 
 Connects Home Assistant to **Tape Chart**, the hotel PMS: every room of a property becomes a
@@ -127,8 +129,11 @@ python3.13 -m venv .venv && .venv/bin/pip install -r requirements_test.txt
 .venv/bin/ruff check . && .venv/bin/pytest -q
 ```
 
-`scripts/i18n.py` writes `translations/en.json` and `translations/bg.json`; `scripts/brand.py`
-draws the brand images. Releases are tagged `vX.Y.Z` matching `manifest.json`; publishing a
+`scripts/i18n.py` writes `translations/en.json` and `translations/bg.json`;
+`python scripts/brand.py <Tape-Chart-Brand-Kit>` builds the brand images from the approved brand
+kit into `custom_components/tapechart/brand/` (Home Assistant 2026.3+ serves them itself) and into
+`brands/custom_integrations/tapechart/` (the file set for a home-assistant/brands pull request,
+for older versions and for HACS). Releases are tagged `vX.Y.Z` matching `manifest.json`; publishing a
 GitHub release attaches `tapechart.zip`, which HACS installs.
 
 ## License
