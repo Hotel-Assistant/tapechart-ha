@@ -89,8 +89,7 @@
           "alarm": "Leak, smoke, SOS. Its device class is sent too.",
           "scenario_welcome": "The script or scene the PMS may run to prepare the room. Nothing else can be run from the PMS.",
           "scenario_eco": "The script or scene for the eco mode.",
-          "scenario_off": "The script or scene that switches the room off.",
-          "online_from_device": "For devices without a connectivity entity: the room is offline when every entity of the chosen device is unavailable."
+          "scenario_off": "The script or scene that switches the room off."
         }
       },
       "fill_pattern": {

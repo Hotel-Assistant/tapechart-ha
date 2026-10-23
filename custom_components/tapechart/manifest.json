@@ -16,5 +16,5 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/Hotel-Assistant/tapechart-ha/issues",
   "requirements": [],
-  "version": "0.1.3"
+  "version": "0.1.4"
 }
