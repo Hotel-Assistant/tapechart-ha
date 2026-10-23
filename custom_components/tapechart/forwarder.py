@@ -78,7 +78,10 @@ class Forwarder:
 
     @callback
     def async_set_mapping(
-        self, mapping: dict[str, dict[str, str]], send_current: set[Key] | None = None
+        self,
+        mapping: dict[str, dict[str, str]],
+        send_current: set[Key] | None = None,
+        skip_missing: bool = False,
     ) -> None:
         """(Re)subscribe to the mapped signal entities.
 
@@ -119,6 +122,8 @@ class Forwarder:
         if send_current:
             for entity_id, keys in by_entity.items():
                 state = self.hass.states.get(entity_id)
+                if state is None and skip_missing:
+                    continue  # it reports itself once it exists
                 for key in keys:
                     if key in send_current and key not in device_keys:
                         self._tracks.pop(key, _Track()).cancel()
@@ -249,7 +254,11 @@ class Forwarder:
         changed_at: datetime,
     ) -> None:
         if value[0] == "off":
-            if track.sent is not None and track.sent[0] == "off":
+            if track.sent is None:
+                # The first report (an entity that appeared after startup): at once.
+                self._send(key, value, changed_at)
+                return
+            if track.sent[0] == "off":
                 track.cancel()
                 return
             if track.pending is not None:

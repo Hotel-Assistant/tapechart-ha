@@ -36,7 +36,9 @@ def _guest(room: Room) -> Room:
 def _ts(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
-    return dt_util.parse_datetime(value)
+    parsed = dt_util.parse_datetime(value)
+    # A timestamp sensor needs a time zone; a naive value would fail the write.
+    return parsed if parsed is not None and parsed.tzinfo is not None else None
 
 
 def _int(value: Any) -> int | None:

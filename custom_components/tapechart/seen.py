@@ -83,7 +83,9 @@ class SeenStore:
         """The answer of a command that already ran."""
         return self._get("commands", command_id)
 
-    @callback
-    def remember_command(self, command_id: str, answer: dict[str, Any]) -> None:
-        """Remember a command that ran."""
+    async def async_remember_command(
+        self, command_id: str, answer: dict[str, Any]
+    ) -> None:
+        """Remember a command that ran, on disk at once (no replay after a crash)."""
         self._put("commands", command_id, answer, COMMAND_SECONDS)
+        await self._store.async_save(self._data)

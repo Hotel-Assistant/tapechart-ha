@@ -48,6 +48,7 @@ from homeassistant.util import dt as dt_util
 import voluptuous as vol
 
 from .api import (
+    TapeChartClient,
     TapeChartConnectionError,
     TapeChartError,
     async_pair,
@@ -89,6 +90,7 @@ from .signing import PATH_WEBHOOK, verify_signature
 _LOGGER = logging.getLogger(__name__)
 
 ONLINE_FROM_DEVICE = "online_from_device"
+ONLY_DEVICE = "only_device"
 
 PAIR_ERRORS = {
     "invalid_code": "invalid_code",
@@ -295,9 +297,8 @@ class TapeChartConfigFlow(ConfigFlow, domain=DOMAIN):
                 if existing is not None:
                     # The PMS replaced its connection; follow it.
                     await self._async_retire_webhook(existing, data)
-                self._abort_if_unique_id_configured(
-                    updates=data, error="already_configured"
-                )
+                # The PMS replaced its connection: the entry follows it.
+                self._abort_if_unique_id_configured(updates=data, error="repaired")
                 return self.async_create_entry(
                     title=data[CONF_PROPERTY_NAME], data=data
                 )
@@ -306,6 +307,38 @@ class TapeChartConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=self._schema(user_input or {}),
             errors=errors,
         )
+
+    async def _async_wrong_property(self, data: dict[str, Any]) -> ConfigFlowResult:
+        """A reauth answered with a code for ANOTHER property.
+
+        The PMS has already replaced that property's connection with this one, so
+        it must not be dropped: the entry of that property takes it over. Without
+        such an entry the new connection is given back (unpaired).
+        """
+        other = self.hass.config_entries.async_entry_for_domain_unique_id(
+            DOMAIN, data[CONF_PROPERTY_ID]
+        )
+        if other is not None:
+            await self._async_retire_webhook(other, data)
+            self.hass.config_entries.async_update_entry(
+                other, title=data[CONF_PROPERTY_NAME], data={**other.data, **data}
+            )
+            self.hass.config_entries.async_schedule_reload(other.entry_id)
+            return self.async_abort(
+                reason="other_property_updated",
+                description_placeholders={"property": data[CONF_PROPERTY_NAME]},
+            )
+        try:
+            await TapeChartClient(
+                async_get_clientsession(self.hass),
+                data[CONF_PMS_URL],
+                data[CONF_CONNECTION_ID],
+                data[CONF_SECRET],
+            ).async_unpair()
+        except TapeChartError:
+            _LOGGER.warning("Tape Chart: the unused connection was not unpaired")
+        await async_delete_cloudhook(self.hass, data[CONF_WEBHOOK_ID])
+        return self.async_abort(reason="wrong_property")
 
     async def async_step_reauth(
         self, entry_data: Mapping[str, Any]
@@ -323,7 +356,7 @@ class TapeChartConfigFlow(ConfigFlow, domain=DOMAIN):
             data = await self._async_pair(user_input, errors)
             if data is not None:
                 if data[CONF_PROPERTY_ID] != entry.unique_id:
-                    return self.async_abort(reason="wrong_property")
+                    return await self._async_wrong_property(data)
                 await self._async_retire_webhook(entry, data)
                 return self.async_update_reload_and_abort(
                     entry, title=data[CONF_PROPERTY_NAME], data_updates=data
@@ -345,6 +378,7 @@ class TapeChartOptionsFlow(OptionsFlow):
         """Initialize."""
         self._unit_id: str | None = None
         self._device_id: str | None = None
+        self._only_device = True
         self._proposal: dict[str, Proposal] = {}
         self._proposal_devices: dict[str, str] = {}
 
@@ -469,6 +503,7 @@ class TapeChartOptionsFlow(OptionsFlow):
         assert self._unit_id is not None
         if user_input is not None:
             self._device_id = user_input.get("device") or None
+            self._only_device = bool(user_input.get(ONLY_DEVICE, True))
             return await self.async_step_map_entities()
         number = self._number(self._unit_id)
         suggested = self._devices.get(self._unit_id) or self._guess_device(number)
@@ -477,6 +512,7 @@ class TapeChartOptionsFlow(OptionsFlow):
                 vol.Optional(
                     "device", description={"suggested_value": suggested}
                 ): DeviceSelector(DeviceSelectorConfig()),
+                vol.Optional(ONLY_DEVICE, default=True): BooleanSelector(),
             }
         )
         return self.async_show_form(
@@ -507,7 +543,11 @@ class TapeChartOptionsFlow(OptionsFlow):
                 devices.pop(self._unit_id, None)
             return self._save(**{OPT_MAPPING: mapping, OPT_DEVICES: devices})
 
-        device_entities = [e.entity_id for e in self._device_entities(self._device_id)]
+        device_entities = (
+            [e.entity_id for e in self._device_entities(self._device_id)]
+            if self._only_device
+            else []
+        )
         online_from_device = str(current.get("online", "")).startswith(DEVICE_PREFIX)
         fields: dict[Any, Any] = {}
         for role, domains in ROLE_DOMAINS.items():

@@ -116,7 +116,9 @@ T = {
                 "unknown": "Unexpected error",
             },
             "abort": {
-                "already_configured": "This property was already paired. The connection has been updated.",
+                "already_configured": "This property is already paired.",
+                "repaired": "This property was already paired. Its connection has been updated to the new pairing.",
+                "other_property_updated": "That code was for {property}; its connection has been updated. To fix this property, generate a code for this property and try again.",
                 "reauth_successful": "Paired again.",
                 "wrong_property": "That code is for another property. Generate the code for the same property.",
             },
@@ -139,7 +141,13 @@ T = {
                 "map_device": {
                     "title": "Device of room {room}",
                     "description": "If one device serves this room (for example an ESPHome room controller), choose it: the lists on the next step will show its entities first, fill by pattern can find the same entities in the other rooms' devices, and the room can be reported offline when the device is. Leave it empty otherwise.",
-                    "data": {"device": "Device of the room (optional)"},
+                    "data": {
+                        "device": "Device of the room (optional)",
+                        "only_device": "List only this device's entities",
+                    },
+                    "data_description": {
+                        "only_device": "Turn off to pick an entity of another device (for example a door contact) for some role.",
+                    },
                 },
                 "map_entities": {
                     "title": "Room {room}",
@@ -277,7 +285,9 @@ T = {
                 "unknown": "Неочаквана грешка",
             },
             "abort": {
-                "already_configured": "Този обект вече е сдвоен. Връзката е обновена.",
+                "already_configured": "Този обект вече е сдвоен.",
+                "repaired": "Този обект вече беше сдвоен. Връзката му е обновена с новото сдвояване.",
+                "other_property_updated": "Кодът беше за {property} и неговата връзка е обновена. За да оправите този обект, създайте код за него и опитайте пак.",
                 "reauth_successful": "Сдвояването е готово.",
                 "wrong_property": "Кодът е за друг обект. Създайте код за същия обект.",
             },
@@ -300,7 +310,13 @@ T = {
                 "map_device": {
                     "title": "Устройство на стая {room}",
                     "description": "Ако стаята се обслужва от едно устройство (например контролер на стаята с ESPHome), изберете го: на следващата стъпка списъците ще показват неговите entities, попълването по шаблон ще намира същите entities в устройствата на другите стаи, а стаята ще се показва офлайн, когато устройството е недостъпно. Иначе оставете празно.",
-                    "data": {"device": "Устройство на стаята (по избор)"},
+                    "data": {
+                        "device": "Устройство на стаята (по избор)",
+                        "only_device": "Показвай само entities на това устройство",
+                    },
+                    "data_description": {
+                        "only_device": "Изключете, за да изберете за някоя роля entity от друго устройство (например контакт на вратата).",
+                    },
                 },
                 "map_entities": {
                     "title": "Стая {room}",

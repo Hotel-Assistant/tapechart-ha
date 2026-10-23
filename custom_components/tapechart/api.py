@@ -90,6 +90,11 @@ def _raise_for_answer(status: int, data: dict[str, Any] | None) -> None:
     slug = str((data or {}).get("error") or "")
     if status == 401 or slug in AUTH_SLUGS:
         raise TapeChartAuthError(slug or "unauthorized")
+    if status in (403, 404):
+        # The endpoint or the connection is gone: retrying cannot help, re-pair.
+        raise TapeChartAuthError(
+            slug or ("forbidden" if status == 403 else "not_found")
+        )
     if slug == "bad_request" or (status in (400, 413, 422) and slug != "rate_limited"):
         raise TapeChartRejectedError(slug or "bad_request")
     if data is not None and data.get("ok") is False:
@@ -152,6 +157,10 @@ class TapeChartClient:
 
     def signed_headers(self, method: str, path: str, body: bytes) -> dict[str, str]:
         """Return the three wire headers; PATH is the logical one (§9 H6)."""
+        # A fresh id per attempt, also on a retry (§9 H5 allows reusing it): the
+        # events inside carry their own ids and the PMS ingests them idempotently,
+        # while a batch re-sent under a seen request id would be answered
+        # `accepted: 0` even if events were appended to it since.
         message_id = str(uuid.uuid4())
         headers = {
             "X-TapeChart-Signature": signature_header(

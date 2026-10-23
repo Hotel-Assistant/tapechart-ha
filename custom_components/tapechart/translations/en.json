@@ -34,7 +34,9 @@
       "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "This property was already paired. The connection has been updated.",
+      "already_configured": "This property is already paired.",
+      "repaired": "This property was already paired. Its connection has been updated to the new pairing.",
+      "other_property_updated": "That code was for {property}; its connection has been updated. To fix this property, generate a code for this property and try again.",
       "reauth_successful": "Paired again.",
       "wrong_property": "That code is for another property. Generate the code for the same property."
     }
@@ -60,7 +62,11 @@
         "title": "Device of room {room}",
         "description": "If one device serves this room (for example an ESPHome room controller), choose it: the lists on the next step will show its entities first, fill by pattern can find the same entities in the other rooms' devices, and the room can be reported offline when the device is. Leave it empty otherwise.",
         "data": {
-          "device": "Device of the room (optional)"
+          "device": "Device of the room (optional)",
+          "only_device": "List only this device's entities"
+        },
+        "data_description": {
+          "only_device": "Turn off to pick an entity of another device (for example a door contact) for some role."
         }
       },
       "map_entities": {

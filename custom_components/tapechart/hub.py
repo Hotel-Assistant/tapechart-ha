@@ -22,6 +22,7 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.network import NoURLAvailableError, get_url
+from homeassistant.helpers.start import async_at_started
 from homeassistant.util import dt as dt_util
 
 from .api import TapeChartAuthError, TapeChartClient, TapeChartError
@@ -172,7 +173,7 @@ class TapeChartHub:
         self._commands: dict[str, asyncio.Future[dict[str, Any]]] = {}
         self._refetch_lock = asyncio.Lock()
         self.outbox = Outbox(
-            hass, entry.entry_id, client.async_post_events, self._async_auth_failed
+            hass, entry, client.async_post_events, self._async_auth_failed
         )
         self.forwarder = Forwarder(hass, self.outbox.async_add)
         self._apply_settings(entry.options)
@@ -182,6 +183,7 @@ class TapeChartHub:
     async def async_setup(self, rooms_answer: dict[str, Any]) -> None:
         """Start: rooms are known; register the webhook; send health + mapping."""
         self._apply_rooms(rooms_answer, from_push=False)
+        self._remove_stale_devices()
         await self.outbox.async_load()
         await self.seen.async_load()
         webhook.async_register(
@@ -193,6 +195,14 @@ class TapeChartHub:
             local_only=False,
             allowed_methods=["POST"],
         )
+        try:
+            await self._async_start()
+        except BaseException:
+            # A retried setup must be able to register the webhook again.
+            webhook.async_unregister(self.hass, self.webhook_id)
+            raise
+
+    async def _async_start(self) -> None:
         self.webhook_urls, cloudhook = await async_webhook_urls(
             self.hass, self.webhook_id, self.entry.data.get(CONF_CLOUDHOOK_URL)
         )
@@ -210,9 +220,11 @@ class TapeChartHub:
         self.outbox.async_add(
             [self._mapping_event(unit) for unit in self.mapping if unit in self.rooms]
         )
-        self.forwarder.async_set_mapping(
-            self._live_mapping(), send_current=self._signal_keys(self._live_mapping())
-        )
+        # Track at once, but send the current states only once HA has started:
+        # while it starts most mapped entities do not exist yet and would all go
+        # out as `unavailable` (and a presence `off` would then be held).
+        self.forwarder.async_set_mapping(self._live_mapping())
+        self.entry.async_on_unload(async_at_started(self.hass, self._async_ha_started))
         self.entry.async_on_unload(
             self.hass.bus.async_listen(
                 EVENT_CORE_CONFIG_UPDATE, self._async_core_config_updated
@@ -221,6 +233,25 @@ class TapeChartHub:
         ir.async_delete_issue(
             self.hass, DOMAIN, f"{ISSUE_CONNECTION}_{self.entry.entry_id}"
         )
+
+    @callback
+    def _async_ha_started(self, _hass: HomeAssistant) -> None:
+        """Send every mapped entity's current state (the outbox paces them)."""
+        mapping = self._live_mapping()
+        self.forwarder.async_set_mapping(
+            mapping, send_current=self._signal_keys(mapping), skip_missing=True
+        )
+
+    @callback
+    def _remove_stale_devices(self) -> None:
+        """Rooms archived while this entry was not running lose their device."""
+        registry = dr.async_get(self.hass)
+        for device in dr.async_entries_for_config_entry(registry, self.entry.entry_id):
+            units = [i[1] for i in device.identifiers if i[0] == DOMAIN]
+            if units and not any(u in self.rooms for u in units):
+                registry.async_update_device(
+                    device.id, remove_config_entry_id=self.entry.entry_id
+                )
 
     async def async_unload(self) -> None:
         """Stop everything; keep unsent events on disk."""
@@ -322,23 +353,25 @@ class TapeChartHub:
     def _wire_entity(self, role: str, entity_id: str) -> dict[str, str] | None:
         """The mapping entry the PMS accepts (§9 H1), or None to leave it out."""
         name = self._entity_name(entity_id)
-        if entity_id.startswith(DEVICE_PREFIX):
+        derived = entity_id.startswith(DEVICE_PREFIX)
+        if derived:
             # `online` from device availability has no entity of its own; name a
             # binary_sensor of that device so the PMS can show where it comes from.
+            # The PMS accepts any valid entity id for `online` (any domain).
             members = sorted(
                 e.entity_id
                 for e in er.async_entries_for_device(
                     er.async_get(self.hass), entity_id[len(DEVICE_PREFIX) :]
                 )
-                if e.domain in ROLE_DOMAINS[role]
             )
             if not members:
                 return None
             entity_id, name = members[0], f"{name} (availability)"
-        if not _ENTITY_ID.match(entity_id) or entity_id.split(".", 1)[
-            0
-        ] not in ROLE_DOMAINS.get(role, ()):
+        if not _ENTITY_ID.match(entity_id):
             return None
+        if not derived and entity_id.split(".", 1)[0] not in ROLE_DOMAINS.get(role, ()):
+            return None
+
         return {"entity_id": entity_id, "name": name[:120]}
 
     def _mapping_event(self, unit_id: str) -> dict[str, Any]:
@@ -514,6 +547,9 @@ class TapeChartHub:
         self, hass: HomeAssistant, webhook_id: str, request: web.Request
     ) -> web.Response:
         """Verify, de-duplicate and dispatch one PMS message."""
+        length = getattr(request, "content_length", None)
+        if length is not None and length > MAX_WEBHOOK_BODY:
+            return _json_response({"ok": False, "error": "bad_request"}, 413)
         if isinstance(request, web.Request):
             body = await request.read()
         else:  # MockRequest from a Nabu Casa cloudhook
@@ -593,7 +629,7 @@ class TapeChartHub:
         self._commands[command_id] = future
         try:
             answer = await self._async_run_command(message)
-            self.seen.remember_command(command_id, answer)
+            await self.seen.async_remember_command(command_id, answer)
             future.set_result(answer)
             return answer
         except BaseException as err:
@@ -639,7 +675,8 @@ def _transition_events(old: Any, new: Any) -> list[str]:
         return []
     if new == "occupied" and old not in ("occupied", "departing"):
         return ["checked_in"]
-    if new == "departed" and old in ("occupied", "departing"):
+    if new in ("departed", "arriving") and old in ("occupied", "departing"):
+        # departing -> arriving: a turnover day (the next guest arrives today).
         return ["checked_out"]
     return []
 

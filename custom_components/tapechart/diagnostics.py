@@ -8,9 +8,21 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
 
 from . import TapeChartConfigEntry
-from .const import CONF_SECRET, CONF_WEBHOOK_ID, CONF_WEBHOOK_URL
+from .const import (
+    CONF_CLOUDHOOK_URL,
+    CONF_CONNECTION_ID,
+    CONF_SECRET,
+    CONF_WEBHOOK_ID,
+    CONF_WEBHOOK_URL,
+)
 
-TO_REDACT_ENTRY = {CONF_SECRET, CONF_WEBHOOK_ID, CONF_WEBHOOK_URL}
+TO_REDACT_ENTRY = {
+    CONF_SECRET,
+    CONF_WEBHOOK_ID,
+    CONF_WEBHOOK_URL,
+    CONF_CLOUDHOOK_URL,
+    CONF_CONNECTION_ID,
+}
 TO_REDACT_ROOM = {"guest", "companions", "name", "first_name", "last_name"}
 
 

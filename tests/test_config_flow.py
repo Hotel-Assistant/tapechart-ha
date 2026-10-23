@@ -19,7 +19,16 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 
 from custom_components.tapechart.const import DOMAIN
 
-from .conftest import CONN, ENTRY_DATA, PAIR_URL, PMS, PROPERTY, SECRET, sign
+from .conftest import (
+    CONN,
+    ENTRY_DATA,
+    PAIR_URL,
+    PMS,
+    PROPERTY,
+    SECRET,
+    UNPAIR_URL,
+    sign,
+)
 
 PAIR_OK = {
     "ok": True,
@@ -238,7 +247,7 @@ async def test_second_pairing_updates_the_entry(
         result["flow_id"], {"pms_url": PMS, "code": "ABCD-EFGH"}
     )
     assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "already_configured"
+    assert result["reason"] == "repaired"
     assert entry.data["connection_id"] == new_conn
     assert entry.data["secret"] == "ab" * 32
     assert entry.data["webhook_id"] != ENTRY_DATA["webhook_id"]
@@ -259,8 +268,14 @@ async def test_reauth(
     entry.add_to_hass(hass)
 
     aioclient_mock.post(
-        PAIR_URL, json={**PAIR_OK, "property": {"id": "other", "name": "Other"}}
+        PAIR_URL,
+        json={
+            **PAIR_OK,
+            "connection_id": "new-conn",
+            "property": {"id": "other", "name": "Other"},
+        },
     )
+    aioclient_mock.post(UNPAIR_URL, json={"ok": True})
     result = await entry.start_reauth_flow(hass)
     assert result["step_id"] == "reauth_confirm"
     result = await hass.config_entries.flow.async_configure(
@@ -268,6 +283,11 @@ async def test_reauth(
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "wrong_property"
+    # No entry owns that property: the unused new connection is given back.
+    unpair = [c for c in aioclient_mock.mock_calls if str(c[1]) == UNPAIR_URL]
+    assert len(unpair) == 1
+    assert unpair[0][3]["X-TapeChart-Connection"] == "new-conn"
+    assert entry.data["connection_id"] == CONN
 
     aioclient_mock.clear_requests()
     aioclient_mock.post(PAIR_URL, json={**PAIR_OK, "secret": "cd" * 32})
@@ -279,3 +299,38 @@ async def test_reauth(
     assert result["reason"] == "reauth_successful"
     assert entry.data["secret"] == "cd" * 32
     assert entry.options["mapping"] == {"u": {"presence": "binary_sensor.x"}}
+
+
+async def test_reauth_with_the_code_of_another_entry(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, ha_urls: None
+) -> None:
+    """A reauth code of another paired property updates THAT entry (not lost)."""
+    entry_a = MockConfigEntry(
+        domain=DOMAIN, unique_id=PROPERTY, title="Villa Bozhe", data=dict(ENTRY_DATA)
+    )
+    entry_a.add_to_hass(hass)
+    entry_b = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="prop-b",
+        title="Spa B",
+        data={**ENTRY_DATA, "property_id": "prop-b", "connection_id": "old-b"},
+    )
+    entry_b.add_to_hass(hass)
+    aioclient_mock.post(
+        PAIR_URL,
+        json={
+            **PAIR_OK,
+            "connection_id": "new-b",
+            "secret": "ef" * 32,
+            "property": {"id": "prop-b", "name": "Spa B"},
+        },
+    )
+    result = await entry_a.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"pms_url": PMS, "code": "ABCD-EFGH"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "other_property_updated"
+    assert entry_b.data["connection_id"] == "new-b"
+    assert entry_b.data["secret"] == "ef" * 32
+    assert entry_a.data["connection_id"] == CONN

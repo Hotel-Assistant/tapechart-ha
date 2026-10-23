@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable
 import logging
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
@@ -17,6 +18,9 @@ _LOGGER = logging.getLogger(__name__)
 
 BACKOFF = (5, 15, 60, 300, 900)
 SAVE_DELAY = 1.0
+# The PMS accepts 600 events per connection per minute (§9 M5); stay under it.
+RATE_EVENTS = 500
+RATE_WINDOW = 60.0
 
 
 def _coalesce_key(event: dict[str, Any]) -> tuple[str, ...] | None:
@@ -43,13 +47,16 @@ class Outbox:
     def __init__(
         self,
         hass: HomeAssistant,
-        entry_id: str,
+        entry: ConfigEntry,
         send: Callable[[list[dict[str, Any]]], Awaitable[Any]],
         on_auth_error: Callable[[], None],
     ) -> None:
         """Initialize."""
         self.hass = hass
-        self._store = _store(hass, entry_id)
+        self._entry = entry
+        self._store = _store(hass, entry.entry_id)
+        self._window_start = 0.0
+        self._window_count = 0
         self._send = send
         self._on_auth_error = on_auth_error
         self.events: list[dict[str, Any]] = []
@@ -73,6 +80,8 @@ class Outbox:
 
     @callback
     def _save(self) -> None:
+        if self._stopped:
+            return  # a reloaded entry owns the file now
         self._store.async_delay_save(self._data, SAVE_DELAY)
 
     @callback
@@ -108,7 +117,9 @@ class Outbox:
         ):
             return
         self._draining = True
-        self.hass.async_create_task(self._async_drain(), eager_start=True)
+        self._entry.async_create_task(
+            self.hass, self._async_drain(), "tapechart_outbox", eager_start=True
+        )
 
     @callback
     def _retry(self, _now: Any) -> None:
@@ -119,6 +130,9 @@ class Outbox:
         try:
             while self.events and not self._stopped and not self.paused:
                 batch = self.events[: 1 if self._isolate else MAX_BATCH]
+                if (wait := self._rate_wait(len(batch))) > 0:
+                    self._retry_unsub = async_call_later(self.hass, wait, self._retry)
+                    return
                 self._inflight = len(batch)
                 try:
                     await self._send(batch)
@@ -162,6 +176,16 @@ class Outbox:
                 self._save()
         finally:
             self._draining = False
+
+    def _rate_wait(self, count: int) -> float:
+        """Seconds to wait before sending `count` more events (0 = send now)."""
+        now = self.hass.loop.time()
+        if now - self._window_start >= RATE_WINDOW:
+            self._window_start, self._window_count = now, 0
+        if self._window_count and self._window_count + count > RATE_EVENTS:
+            return self._window_start + RATE_WINDOW - now
+        self._window_count += count
+        return 0.0
 
     @callback
     def async_stop(self) -> None:
