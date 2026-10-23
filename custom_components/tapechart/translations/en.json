@@ -225,8 +225,12 @@
     }
   },
   "exceptions": {
-    "auth_failed": "Tape Chart refused this Home Assistant. Pair it again with a new code.",
-    "cannot_connect": "Could not reach Tape Chart ({error})."
+    "auth_failed": {
+      "message": "Tape Chart refused this Home Assistant. Pair it again with a new code."
+    },
+    "cannot_connect": {
+      "message": "Could not reach Tape Chart ({error})."
+    }
   },
   "issues": {
     "connection_lost": {
