@@ -230,6 +230,15 @@ async def test_disconnected_starts_reauth(
     )
     assert issue is not None
     assert entry.runtime_data.outbox.paused
+    # what HA held about the rooms is gone: every room entity is unavailable and no
+    # guest name lingers (owner, 2026-10-24)
+    reg = er.async_get(hass)
+    for key in ("status", "guest", "adults", "nights_left"):
+        eid = reg.async_get_entity_id("sensor", DOMAIN, f"{U205}_{key}")
+        state = hass.states.get(eid)
+        assert state.state == "unavailable"
+        assert "guest" not in state.attributes
+    assert "stay" not in entry.runtime_data.rooms[U205]
 
 
 async def test_handler_error_is_not_success(

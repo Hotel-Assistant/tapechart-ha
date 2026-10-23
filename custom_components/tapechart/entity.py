@@ -50,8 +50,8 @@ class TapeChartRoomEntity(Entity):
 
     @property
     def available(self) -> bool:
-        """A room the PMS no longer lists is unavailable."""
-        return self.unit_id in self.hub.rooms
+        """Unavailable when the PMS no longer lists the room or the connection is lost."""
+        return not self.hub.disconnected and self.unit_id in self.hub.rooms
 
     async def async_added_to_hass(self) -> None:
         """Follow the room's updates."""

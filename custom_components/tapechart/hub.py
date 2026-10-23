@@ -395,6 +395,13 @@ class TapeChartHub:
             return
         self.disconnected = True
         self.outbox.paused = True
+        # The PMS cut the link: what HA holds about the rooms is no longer true, and the
+        # guests' names must not linger. Every room entity turns unavailable; the stays are
+        # forgotten (a new pairing fetches /rooms again).
+        for unit_id, room in self.rooms.items():
+            room.pop("stay", None)
+            room.pop("next_arrival", None)
+            async_dispatcher_send(self.hass, signal_room(self.entry.entry_id, unit_id))
         ir.async_create_issue(
             self.hass,
             DOMAIN,
