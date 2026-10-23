@@ -9,7 +9,7 @@
           "code": "Pairing code"
         },
         "data_description": {
-          "pms_url": "For example https://pms.example.com or http://192.168.1.20:3000",
+          "pms_url": "The address you open the PMS at: its domain, or its local network address with the port.",
           "code": "Eight letters and digits, like ABCD-EFGH"
         }
       },
@@ -23,8 +23,8 @@
       }
     },
     "error": {
-      "invalid_url": "This is not a valid address. Start it with http:// or https://.",
-      "insecure_url": "Use https:// for an address on the internet. Plain http:// is accepted only for an address in the local network.",
+      "invalid_url": "This is not a valid web address.",
+      "insecure_url": "Use a secure (HTTPS) address for a PMS on the internet. Plain HTTP is accepted only for an address in the local network.",
       "invalid_code": "The pairing code is not valid or was already used.",
       "code_expired": "The pairing code has expired. Generate a new one.",
       "unreachable": "Tape Chart could not reach this Home Assistant. Check the internal or external URL under Settings → System → Network, or enable Home Assistant Cloud.",
