@@ -186,7 +186,12 @@
         }
       },
       "guest_language": {
-        "name": "Guest language"
+        "name": "Guest language",
+        "state": {
+          "en": "English",
+          "bg": "Bulgarian",
+          "none": "No guest"
+        }
       },
       "adults": {
         "name": "Adults"

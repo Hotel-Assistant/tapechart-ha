@@ -135,8 +135,11 @@ async def test_every_status(hass: HomeAssistant, setup_entry) -> None:
     vacant = _state(hass, "sensor", U206, "status")
     assert "guest" not in vacant.attributes
     assert "companions" not in vacant.attributes
-    for key in ("adults", "check_in", "nights", "guest_language", "next_arrival"):
+    for key in ("check_in", "next_arrival"):
         assert _state(hass, "sensor", U206, key).state == STATE_UNKNOWN
+    for key in ("adults", "children", "nights", "nights_left"):
+        assert _state(hass, "sensor", U206, key).state == "0"
+    assert _state(hass, "sensor", U206, "guest_language").state == "none"
 
 
 async def test_names_off(hass: HomeAssistant, setup_entry, rooms_answer) -> None:
@@ -201,7 +204,7 @@ async def test_stay_events(
     await hass.async_block_till_done()
     assert hass.states.get(event_id).attributes["event_type"] == "checked_out"
     assert _state(hass, "sensor", U207, "status").state == "departed"
-    assert _state(hass, "sensor", U207, "adults").state == STATE_UNKNOWN
+    assert _state(hass, "sensor", U207, "adults").state == "0"
 
 
 async def test_diagnostics_redact(

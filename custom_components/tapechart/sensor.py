@@ -45,6 +45,28 @@ def _int(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def _count(room: Room, key: str) -> int | None:
+    """A party / nights count: 0 when the room has no stay (never "unknown")."""
+    stay = room.get("stay")
+    if not stay:
+        return 0
+    return _int(stay.get(key))
+
+
+GUEST_LANGUAGES = ["en", "bg", "none"]
+
+
+def _language(room: Room) -> str | None:
+    """The guest's language; `none` when nobody is staying or arriving.
+
+    With guest names switched off the PMS sends no guest, so the language is not known.
+    """
+    if not room.get("stay"):
+        return "none"
+    locale = _guest(room).get("locale")
+    return locale if locale in ("en", "bg") else None
+
+
 @dataclass(frozen=True, kw_only=True)
 class TapeChartSensorDescription(SensorEntityDescription):
     """A room sensor: how to read its value and attributes off room_state."""
@@ -75,17 +97,19 @@ SENSORS: tuple[TapeChartSensorDescription, ...] = (
     TapeChartSensorDescription(
         key="guest_language",
         translation_key="guest_language",
-        value_fn=lambda room: _guest(room).get("locale") or None,
+        device_class=SensorDeviceClass.ENUM,
+        options=GUEST_LANGUAGES,
+        value_fn=_language,
     ),
     TapeChartSensorDescription(
         key="adults",
         translation_key="adults",
-        value_fn=lambda room: _int(_stay(room).get("adults")),
+        value_fn=lambda room: _count(room, "adults"),
     ),
     TapeChartSensorDescription(
         key="children",
         translation_key="children",
-        value_fn=lambda room: _int(_stay(room).get("children")),
+        value_fn=lambda room: _count(room, "children"),
         attrs_fn=lambda room: {"ages": list(_stay(room).get("child_ages") or [])},
     ),
     TapeChartSensorDescription(
@@ -103,12 +127,12 @@ SENSORS: tuple[TapeChartSensorDescription, ...] = (
     TapeChartSensorDescription(
         key="nights",
         translation_key="nights",
-        value_fn=lambda room: _int(_stay(room).get("nights")),
+        value_fn=lambda room: _count(room, "nights"),
     ),
     TapeChartSensorDescription(
         key="nights_left",
         translation_key="nights_left",
-        value_fn=lambda room: _int(_stay(room).get("nights_left")),
+        value_fn=lambda room: _count(room, "nights_left"),
     ),
     TapeChartSensorDescription(
         key="next_arrival",
