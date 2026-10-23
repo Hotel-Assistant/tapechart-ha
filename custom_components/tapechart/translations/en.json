@@ -58,17 +58,6 @@
           "room": "Room"
         }
       },
-      "map_device": {
-        "title": "Device of room {room}",
-        "description": "If one device serves this room (for example an ESPHome room controller), choose it: the lists on the next step will show its entities first, fill by pattern can find the same entities in the other rooms' devices, and the room can be reported offline when the device is. Leave it empty otherwise.",
-        "data": {
-          "device": "Device of the room (optional)",
-          "only_device": "List only this device's entities"
-        },
-        "data_description": {
-          "only_device": "Turn off to pick an entity of another device (for example a door contact) for some role."
-        }
-      },
       "map_entities": {
         "title": "Room {room}",
         "description": "Choose which entity plays which role. Only the entities chosen here are ever sent to Tape Chart. Leave a role empty if the room has nothing for it.",
@@ -85,8 +74,7 @@
           "alarm": "Alarm",
           "scenario_welcome": "Scenario: welcome",
           "scenario_eco": "Scenario: eco",
-          "scenario_off": "Scenario: all off",
-          "online_from_device": "Online = the device is available"
+          "scenario_off": "Scenario: all off"
         },
         "data_description": {
           "presence": "Someone is physically in the room (motion, presence). binary_sensor or input_boolean.",

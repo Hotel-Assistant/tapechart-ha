@@ -53,13 +53,13 @@ def _esphome_room(
     return device, ids
 
 
-async def test_map_room_with_device(
+async def test_map_room_entities(
     hass: HomeAssistant, setup_entry, aioclient_mock
 ) -> None:
-    """Room → device (suggested by the number) → one entity per role."""
+    """Room → straight to one entity picker per role, each filtered by its domains."""
     esphome = MockConfigEntry(domain="esphome")
     esphome.add_to_hass(hass)
-    device, ids = _esphome_room(hass, esphome, "205", "room_205", "AA:01")
+    _device, ids = _esphome_room(hass, esphome, "205", "room_205", "AA:01")
     hass.states.async_set("script.welcome_205", "off")
     entry = await setup_entry()
 
@@ -77,17 +77,13 @@ async def test_map_room_with_device(
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"room": U205}
     )
-    assert result["step_id"] == "map_device"
-    device_key = next(iter(result["data_schema"].schema))
-    assert device_key.description == {"suggested_value": device.id}
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"device": device.id}
-    )
     assert result["step_id"] == "map_entities"
     schema = {str(k): v for k, v in result["data_schema"].schema.items()}
-    assert schema["presence"].config["include_entities"] == [ids["binary_sensor"]]
+    assert schema["presence"].config["domain"] == ["binary_sensor", "input_boolean"]
+    assert schema["temperature"].config["domain"] == ["sensor"]
     assert schema["climate"].config["domain"] == ["climate"]
-    assert "online_from_device" in schema
+    assert "include_entities" not in schema["presence"].config
+    assert "online_from_device" not in schema
     before = len(events_posted(aioclient_mock))
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
@@ -95,7 +91,6 @@ async def test_map_room_with_device(
             "presence": ids["binary_sensor"],
             "climate": ids["climate"],
             "scenario_welcome": "script.welcome_205",
-            "online_from_device": True,
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -103,9 +98,7 @@ async def test_map_room_with_device(
         "presence": ids["binary_sensor"],
         "climate": ids["climate"],
         "scenario_welcome": "script.welcome_205",
-        "online": f"device:{device.id}",
     }
-    assert entry.options["devices"] == {U205: device.id}
     assert entry.options["presence_hold_minutes"] == 5
     await hass.async_block_till_done()
     sent = events_posted(aioclient_mock)[before:]
@@ -114,7 +107,6 @@ async def test_map_room_with_device(
     assert {e["role"] for e in sent if e["type"] == "signal"} == {
         "presence",
         "climate",
-        "online",
     }
 
 
@@ -130,7 +122,6 @@ async def test_clear_a_room(hass: HomeAssistant, setup_entry) -> None:
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"room": U205}
     )
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {})
     schema = {str(k): k for k in result["data_schema"].schema}
     assert schema["presence"].description == {"suggested_value": "binary_sensor.x"}
     assert "online_from_device" not in schema

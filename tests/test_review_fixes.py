@@ -33,7 +33,6 @@ from .conftest import (
     PROPERTY,
     ROOMS_URL,
     U205,
-    U206,
     U207,
     WEBHOOK_ID,
     events_posted,
@@ -245,36 +244,6 @@ async def test_l8_setup_retry_after_a_failure(
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
-
-
-async def test_l9_any_entity_beside_the_device(
-    hass: HomeAssistant, setup_entry
-) -> None:
-    """With "only this device" off, the pickers are not limited to the device."""
-    other = MockConfigEntry(domain="esphome")
-    other.add_to_hass(hass)
-    device = dr.async_get(hass).async_get_or_create(
-        config_entry_id=other.entry_id,
-        identifiers={("esphome", "r206")},
-        name="Room 206",
-    )
-    er.async_get(hass).async_get_or_create(
-        "binary_sensor", "esphome", "r206-pir", device_id=device.id
-    )
-    entry = await setup_entry()
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "map_room"}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"room": U206}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"device": device.id, "only_device": False}
-    )
-    schema = {str(k): v for k, v in result["data_schema"].schema.items()}
-    assert "include_entities" not in schema["presence"].config
-    assert "online_from_device" in schema
 
 
 async def test_l11_missing_endpoint_stops_and_asks_to_repair(

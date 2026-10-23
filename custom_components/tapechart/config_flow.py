@@ -29,8 +29,6 @@ from homeassistant.helpers import (
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
-    DeviceSelector,
-    DeviceSelectorConfig,
     EntitySelector,
     EntitySelectorConfig,
     NumberSelector,
@@ -89,8 +87,6 @@ from .signing import PATH_WEBHOOK, verify_signature
 
 _LOGGER = logging.getLogger(__name__)
 
-ONLINE_FROM_DEVICE = "online_from_device"
-ONLY_DEVICE = "only_device"
 
 PAIR_ERRORS = {
     "invalid_code": "invalid_code",
@@ -377,8 +373,6 @@ class TapeChartOptionsFlow(OptionsFlow):
     def __init__(self) -> None:
         """Initialize."""
         self._unit_id: str | None = None
-        self._device_id: str | None = None
-        self._only_device = True
         self._proposal: dict[str, Proposal] = {}
         self._proposal_devices: dict[str, str] = {}
 
@@ -483,7 +477,8 @@ class TapeChartOptionsFlow(OptionsFlow):
         """Pick a room."""
         if user_input is not None:
             self._unit_id = user_input["room"]
-            return await self.async_step_map_device()
+            # straight to the entities: one picker per role, filtered by the role's domains
+            return await self.async_step_map_entities()
         schema = vol.Schema(
             {
                 vol.Required("room"): SelectSelector(
@@ -496,31 +491,6 @@ class TapeChartOptionsFlow(OptionsFlow):
         )
         return self.async_show_form(step_id="map_room", data_schema=schema)
 
-    async def async_step_map_device(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Optionally the device that serves the room (narrows the next lists)."""
-        assert self._unit_id is not None
-        if user_input is not None:
-            self._device_id = user_input.get("device") or None
-            self._only_device = bool(user_input.get(ONLY_DEVICE, True))
-            return await self.async_step_map_entities()
-        number = self._number(self._unit_id)
-        suggested = self._devices.get(self._unit_id) or self._guess_device(number)
-        schema = vol.Schema(
-            {
-                vol.Optional(
-                    "device", description={"suggested_value": suggested}
-                ): DeviceSelector(DeviceSelectorConfig()),
-                vol.Optional(ONLY_DEVICE, default=True): BooleanSelector(),
-            }
-        )
-        return self.async_show_form(
-            step_id="map_device",
-            data_schema=schema,
-            description_placeholders={"room": number},
-        )
-
     async def async_step_map_entities(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -529,44 +499,28 @@ class TapeChartOptionsFlow(OptionsFlow):
         current = self._mapping.get(self._unit_id, {})
         if user_input is not None:
             roles = {role: user_input[role] for role in ROLES if user_input.get(role)}
-            if self._device_id and user_input.get(ONLINE_FROM_DEVICE):
-                roles["online"] = DEVICE_PREFIX + self._device_id
+            # an `online` taken from a device's availability (set by fill-by-pattern) is
+            # kept while the picker is left empty
+            if "online" not in roles and str(current.get("online", "")).startswith(
+                DEVICE_PREFIX
+            ):
+                roles["online"] = current["online"]
             mapping = self._mapping
             devices = self._devices
             if roles:
                 mapping[self._unit_id] = roles
             else:
                 mapping.pop(self._unit_id, None)
-            if self._device_id:
-                devices[self._unit_id] = self._device_id
-            else:
-                devices.pop(self._unit_id, None)
             return self._save(**{OPT_MAPPING: mapping, OPT_DEVICES: devices})
 
-        device_entities = (
-            [e.entity_id for e in self._device_entities(self._device_id)]
-            if self._only_device
-            else []
-        )
-        online_from_device = str(current.get("online", "")).startswith(DEVICE_PREFIX)
         fields: dict[Any, Any] = {}
         for role, domains in ROLE_DOMAINS.items():
-            config = EntitySelectorConfig(domain=list(domains))
-            narrowed = [e for e in device_entities if e.split(".", 1)[0] in domains]
             value = current.get(role)
             if value and value.startswith(DEVICE_PREFIX):
                 value = None
-            if narrowed:
-                if value and value not in narrowed:
-                    narrowed.append(value)
-                config["include_entities"] = narrowed
             fields[vol.Optional(role, description={"suggested_value": value})] = (
-                EntitySelector(config)
+                EntitySelector(EntitySelectorConfig(domain=list(domains)))
             )
-            if role == "online" and self._device_id:
-                fields[vol.Optional(ONLINE_FROM_DEVICE, default=online_from_device)] = (
-                    BooleanSelector()
-                )
         return self.async_show_form(
             step_id="map_entities",
             data_schema=vol.Schema(fields),
