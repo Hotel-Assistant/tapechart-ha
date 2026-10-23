@@ -1,6 +1,4 @@
 {
   "name": "Tape Chart",
-  "homeassistant": "2025.6.0",
-  "zip_release": true,
-  "filename": "tapechart.zip"
+  "homeassistant": "2025.6.0"
 }
