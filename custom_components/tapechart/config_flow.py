@@ -150,6 +150,14 @@ def _lan_host(host: str | None) -> bool:
     return ip.is_private or ip.is_loopback or ip.is_link_local
 
 
+def _all_devices(registry: dr.DeviceRegistry) -> list[dr.DeviceEntry]:
+    """Every device; iterating the registry yields entries from HA 2026.x, ids before."""
+    items = list(registry.devices)
+    if items and isinstance(items[0], str):
+        return [registry.devices[i] for i in items]
+    return items
+
+
 def _natural(number: str) -> tuple[Any, ...]:
     return tuple(int(p) if p.isdigit() else p for p in re.split(r"(\d+)", number))
 
@@ -415,8 +423,9 @@ class TapeChartOptionsFlow(OptionsFlow):
             entries = set(source.config_entries)
         found = [
             device.id
-            for device in registry.devices.values()
+            for device in _all_devices(registry)
             if device.disabled_by is None
+            and self.config_entry.entry_id not in device.config_entries
             and (entries is None or entries & set(device.config_entries))
             and number_in_name(device.name_by_user or device.name, number)
         ]

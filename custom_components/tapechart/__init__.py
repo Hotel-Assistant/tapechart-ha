@@ -21,6 +21,7 @@ from .const import (
 )
 from .hub import TapeChartHub, async_delete_cloudhook
 from .outbox import async_remove_outbox
+from .seen import SeenStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,6 +86,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         _LOGGER.info("Tape Chart: the PMS was not told about the removal (%s)", err)
     await async_delete_cloudhook(hass, entry.data[CONF_WEBHOOK_ID])
     await async_remove_outbox(hass, entry.entry_id)
+    await SeenStore(hass, entry.entry_id).async_remove()
 
 
 async def async_remove_config_entry_device(

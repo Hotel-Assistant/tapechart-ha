@@ -76,6 +76,7 @@ async def ha_urls(hass: HomeAssistant) -> None:
         },
     )
     await async_setup_component(hass, "http", {})
+    await async_setup_component(hass, "webhook", {})
 
 
 def sign(
@@ -90,7 +91,12 @@ def sign(
     message_id = message_id or str(uuid.uuid4())
     return {
         "X-TapeChart-Signature": signature_header(
-            secret, int(time.time()) if t is None else t, message_id, "POST", PATH_WEBHOOK, body
+            secret,
+            int(time.time()) if t is None else t,
+            message_id,
+            "POST",
+            PATH_WEBHOOK,
+            body,
         ),
         "X-TapeChart-Id": message_id,
         "X-TapeChart-Connection": connection,
@@ -137,3 +143,15 @@ def setup_entry(
         return entry
 
     return _setup
+
+
+def room_device(hass: HomeAssistant, unit_id: str):
+    """The Tape Chart device of a room."""
+    from homeassistant.helpers import device_registry as dr
+
+    registry = dr.async_get(hass)
+    for item in registry.devices:
+        device = registry.async_get(item) if isinstance(item, str) else item
+        if (DOMAIN, unit_id) in device.identifiers:
+            return device
+    return None

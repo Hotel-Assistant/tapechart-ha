@@ -478,10 +478,19 @@ class TapeChartHub:
         number = (self.rooms.get(unit_id) or {}).get("number") or unit_id
         return f"{self.property_name} · {number}"
 
+    def _room_device(
+        self, registry: dr.DeviceRegistry, unit_id: str
+    ) -> dr.DeviceEntry | None:
+        """This entry's device for a room (no identifier lookup across entries)."""
+        for device in dr.async_entries_for_config_entry(registry, self.entry.entry_id):
+            if (DOMAIN, unit_id) in device.identifiers:
+                return device
+        return None
+
     @callback
     def _update_device(self, unit_id: str) -> None:
         registry = dr.async_get(self.hass)
-        device = registry.async_get_device(identifiers={(DOMAIN, unit_id)})
+        device = self._room_device(registry, unit_id)
         if device is None:
             return
         registry.async_update_device(
@@ -493,7 +502,7 @@ class TapeChartHub:
     @callback
     def _remove_device(self, unit_id: str) -> None:
         registry = dr.async_get(self.hass)
-        device = registry.async_get_device(identifiers={(DOMAIN, unit_id)})
+        device = self._room_device(registry, unit_id)
         if device is not None:
             registry.async_update_device(
                 device.id, remove_config_entry_id=self.entry.entry_id
