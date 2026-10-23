@@ -1,0 +1,36 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "guest_checked_in": {
+        "default": "mdi:account-off-outline",
+        "state": { "on": "mdi:account-check" }
+      }
+    },
+    "event": {
+      "stay": { "default": "mdi:calendar-account" }
+    },
+    "sensor": {
+      "status": {
+        "default": "mdi:bed",
+        "state": {
+          "vacant": "mdi:bed-empty",
+          "arriving": "mdi:location-enter",
+          "occupied": "mdi:bed",
+          "departing": "mdi:location-exit",
+          "departed": "mdi:broom",
+          "out_of_service": "mdi:wrench"
+        }
+      },
+      "guest": { "default": "mdi:account" },
+      "guest_language": { "default": "mdi:translate" },
+      "adults": { "default": "mdi:account-multiple" },
+      "children": { "default": "mdi:human-child" },
+      "check_in": { "default": "mdi:calendar-arrow-right" },
+      "check_out": { "default": "mdi:calendar-arrow-left" },
+      "nights": { "default": "mdi:weather-night" },
+      "nights_left": { "default": "mdi:timer-sand" },
+      "reservation_number": { "default": "mdi:pound" },
+      "next_arrival": { "default": "mdi:calendar-clock" }
+    }
+  }
+}

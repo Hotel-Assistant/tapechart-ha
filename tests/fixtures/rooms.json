@@ -1,0 +1,101 @@
+{
+  "ok": true,
+  "rooms": [
+    {
+      "unit_id": "11111111-1111-4111-8111-111111111205",
+      "property_id": "99999999-9999-4999-8999-999999999999",
+      "number": "205",
+      "room_type": "Double",
+      "version": 10,
+      "business_date": "2026-10-23",
+      "status": "occupied",
+      "stay": {
+        "reservation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "checked_in": true,
+        "check_in_at": "2026-10-22T14:00:00+03:00",
+        "check_out_at": "2026-10-26T12:00:00+02:00",
+        "nights": 4,
+        "nights_left": 3,
+        "adults": 2,
+        "children": 1,
+        "child_ages": [7],
+        "guest": {"name": "Ivan Petrov", "first_name": "Ivan", "last_name": "Petrov", "locale": "bg"},
+        "companions": ["Maria Petrova"]
+      },
+      "next_arrival": {"check_in_at": "2026-10-27T14:00:00+02:00", "adults": 2, "children": 0},
+      "events": []
+    },
+    {
+      "unit_id": "11111111-1111-4111-8111-111111111206",
+      "property_id": "99999999-9999-4999-8999-999999999999",
+      "number": "206",
+      "room_type": "Double",
+      "version": 11,
+      "business_date": "2026-10-23",
+      "status": "vacant",
+      "stay": null,
+      "next_arrival": null,
+      "events": []
+    },
+    {
+      "unit_id": "11111111-1111-4111-8111-111111111207",
+      "property_id": "99999999-9999-4999-8999-999999999999",
+      "number": "207",
+      "room_type": "Suite",
+      "version": 12,
+      "business_date": "2026-10-23",
+      "status": "arriving",
+      "stay": {
+        "reservation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "checked_in": false,
+        "check_in_at": "2026-10-23T14:00:00+03:00",
+        "check_out_at": "2026-10-25T12:00:00+03:00",
+        "nights": 2,
+        "nights_left": 2,
+        "adults": 1,
+        "children": 0,
+        "child_ages": [],
+        "guest": {"name": "Anna Smith", "first_name": "Anna", "last_name": "Smith", "locale": "en"},
+        "companions": []
+      },
+      "next_arrival": null,
+      "events": []
+    },
+    {
+      "unit_id": "11111111-1111-4111-8111-111111111208",
+      "property_id": "99999999-9999-4999-8999-999999999999",
+      "number": "208",
+      "room_type": "Double",
+      "version": 13,
+      "business_date": "2026-10-23",
+      "status": "departing",
+      "stay": null,
+      "next_arrival": null,
+      "events": []
+    },
+    {
+      "unit_id": "11111111-1111-4111-8111-111111111209",
+      "property_id": "99999999-9999-4999-8999-999999999999",
+      "number": "209",
+      "room_type": "Double",
+      "version": 14,
+      "business_date": "2026-10-23",
+      "status": "departed",
+      "stay": null,
+      "next_arrival": null,
+      "events": []
+    },
+    {
+      "unit_id": "11111111-1111-4111-8111-111111111210",
+      "property_id": "99999999-9999-4999-8999-999999999999",
+      "number": "210",
+      "room_type": "Single",
+      "version": 15,
+      "business_date": "2026-10-23",
+      "status": "out_of_service",
+      "stay": null,
+      "next_arrival": null,
+      "events": []
+    }
+  ]
+}

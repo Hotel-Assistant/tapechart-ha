@@ -1,0 +1,231 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Tape Chart",
+        "description": "In Tape Chart open **Settings → Integrations → Home Assistant**, pick the property and press **Generate pairing code**. Type the PMS address shown there and the code. The code is valid for 10 minutes.",
+        "data": {
+          "pms_url": "PMS address",
+          "code": "Pairing code"
+        },
+        "data_description": {
+          "pms_url": "For example https://pms.example.com or http://192.168.1.20:3000",
+          "code": "Eight letters and digits, like ABCD-EFGH"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Pair {property} again",
+        "description": "Tape Chart no longer accepts this Home Assistant for {property}. Generate a new pairing code for the same property in Tape Chart and type it here. The room mapping is kept.",
+        "data": {
+          "pms_url": "PMS address",
+          "code": "Pairing code"
+        }
+      }
+    },
+    "error": {
+      "invalid_url": "This is not a valid address. Start it with http:// or https://.",
+      "insecure_url": "Use https:// for an address on the internet. Plain http:// is accepted only for an address in the local network.",
+      "invalid_code": "The pairing code is not valid or was already used.",
+      "code_expired": "The pairing code has expired. Generate a new one.",
+      "unreachable": "Tape Chart could not reach this Home Assistant. Check the internal or external URL under Settings → System → Network, or enable Home Assistant Cloud.",
+      "rate_limited": "Too many attempts. Wait a minute and try again.",
+      "cannot_connect": "Could not connect to the PMS. Check the address.",
+      "no_ha_url": "Home Assistant has no URL configured. Set one under Settings → System → Network.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This property was already paired. The connection has been updated.",
+      "reauth_successful": "Paired again.",
+      "wrong_property": "That code is for another property. Generate the code for the same property."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tape Chart",
+        "menu_options": {
+          "map_room": "Map a room",
+          "fill_pattern": "Fill other rooms by pattern",
+          "settings": "Settings"
+        }
+      },
+      "map_room": {
+        "title": "Map a room",
+        "description": "Choose the room to map.",
+        "data": {
+          "room": "Room"
+        }
+      },
+      "map_device": {
+        "title": "Device of room {room}",
+        "description": "If one device serves this room (for example an ESPHome room controller), choose it: the lists on the next step will show its entities first, fill by pattern can find the same entities in the other rooms' devices, and the room can be reported offline when the device is. Leave it empty otherwise.",
+        "data": {
+          "device": "Device of the room (optional)"
+        }
+      },
+      "map_entities": {
+        "title": "Room {room}",
+        "description": "Choose which entity plays which role. Only the entities chosen here are ever sent to Tape Chart. Leave a role empty if the room has nothing for it.",
+        "data": {
+          "presence": "Presence",
+          "keycard": "Key card",
+          "door": "Door",
+          "window": "Window",
+          "dnd": "Do not disturb",
+          "mur": "Make up room",
+          "climate": "Thermostat",
+          "temperature": "Room temperature",
+          "online": "Controller online",
+          "alarm": "Alarm",
+          "scenario_welcome": "Scenario: welcome",
+          "scenario_eco": "Scenario: eco",
+          "scenario_off": "Scenario: all off",
+          "online_from_device": "Online = the device is available"
+        },
+        "data_description": {
+          "presence": "Someone is physically in the room (motion, presence). binary_sensor or input_boolean.",
+          "keycard": "A key card is in the holder.",
+          "door": "On = the door is open.",
+          "window": "On = the window is open.",
+          "dnd": "The guest asked not to be disturbed.",
+          "mur": "The guest asked for the room to be cleaned.",
+          "climate": "Mode, set and current temperature come from it.",
+          "temperature": "Only if the room temperature does not come from the thermostat.",
+          "online": "The room controller is reachable (connectivity).",
+          "alarm": "Leak, smoke, SOS. Its device class is sent too.",
+          "scenario_welcome": "The script or scene the PMS may run to prepare the room. Nothing else can be run from the PMS.",
+          "scenario_eco": "The script or scene for the eco mode.",
+          "scenario_off": "The script or scene that switches the room off.",
+          "online_from_device": "For devices without a connectivity entity: the room is offline when every entity of the chosen device is unavailable."
+        }
+      },
+      "fill_pattern": {
+        "title": "Fill by pattern",
+        "description": "Choose a room that is already mapped. For every other room the same entities are looked up: first inside that room's device (found by the room number in the device name, like \"Room 206\"), then by putting the room number into each entity id (room_205_pir → room_206_pir). Only entities that exist are proposed, and you will see them, and what was not found, before anything is saved.",
+        "data": {
+          "source": "Mapped room to copy",
+          "overwrite": "Replace roles that are already mapped"
+        }
+      },
+      "fill_confirm": {
+        "title": "Found entities for {rooms} rooms",
+        "description": "{result}\n\nSave these mappings?"
+      },
+      "settings": {
+        "title": "Settings",
+        "data": {
+          "presence_hold_minutes": "Presence off delay",
+          "temperature_min_delta": "Smallest temperature change to send",
+          "temperature_min_interval": "Shortest time between temperature updates"
+        },
+        "data_description": {
+          "presence_hold_minutes": "Presence 'on' is sent at once; 'off' only when it lasts this long.",
+          "temperature_min_delta": "Smaller changes are not sent.",
+          "temperature_min_interval": "Changes coming faster are combined."
+        }
+      }
+    },
+    "error": {
+      "nothing_found": "No matching entities were found for the other rooms."
+    },
+    "abort": {
+      "not_loaded": "The integration is not running. Check the connection to Tape Chart first.",
+      "no_mapped_rooms": "Map one room first, then fill the others from it."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "guest_checked_in": {
+        "name": "Guest checked in"
+      }
+    },
+    "event": {
+      "stay": {
+        "name": "Stay",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "checked_in": "Checked in",
+              "checked_out": "Checked out",
+              "moved_in": "Moved in",
+              "moved_out": "Moved out",
+              "stay_changed": "Stay changed",
+              "cancelled": "Cancelled"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "vacant": "Vacant",
+          "arriving": "Arriving",
+          "occupied": "Occupied",
+          "departing": "Departing",
+          "departed": "Departed",
+          "out_of_service": "Out of service"
+        },
+        "state_attributes": {
+          "business_date": {
+            "name": "Business date"
+          },
+          "guest": {
+            "name": "Guest"
+          },
+          "companions": {
+            "name": "Companions"
+          }
+        }
+      },
+      "guest_language": {
+        "name": "Guest language"
+      },
+      "adults": {
+        "name": "Adults"
+      },
+      "children": {
+        "name": "Children",
+        "state_attributes": {
+          "ages": {
+            "name": "Ages"
+          }
+        }
+      },
+      "check_in": {
+        "name": "Check-in"
+      },
+      "check_out": {
+        "name": "Check-out"
+      },
+      "nights": {
+        "name": "Nights"
+      },
+      "nights_left": {
+        "name": "Nights left"
+      },
+      "next_arrival": {
+        "name": "Next arrival",
+        "state_attributes": {
+          "adults": {
+            "name": "Adults"
+          },
+          "children": {
+            "name": "Children"
+          }
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "auth_failed": "Tape Chart refused this Home Assistant. Pair it again with a new code.",
+    "cannot_connect": "Could not reach Tape Chart ({error})."
+  },
+  "issues": {
+    "connection_lost": {
+      "title": "Tape Chart: {property} is disconnected",
+      "description": "Tape Chart no longer accepts this Home Assistant for {property}, so room data and signals are not exchanged. Generate a new pairing code in Tape Chart (Settings → Integrations → Home Assistant) and open the Tape Chart integration here to pair again."
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "domain": "tapechart",
+  "name": "Tape Chart",
+  "after_dependencies": ["cloud"],
+  "codeowners": ["@iezhkv"],
+  "config_flow": true,
+  "dependencies": ["webhook"],
+  "documentation": "https://github.com/Hotel-Assistant/tapechart-ha",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/Hotel-Assistant/tapechart-ha/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
